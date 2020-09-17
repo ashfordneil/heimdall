@@ -21,6 +21,7 @@ struct Arguments {
 
 fn main() -> Result<()> {
     let args = Arguments::from_args();
+    env_logger::init();
 
     let tree = Tree::new(args.root)?;
     println!("{:?}", tree);

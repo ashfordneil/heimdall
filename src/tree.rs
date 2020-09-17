@@ -1,4 +1,7 @@
-use self::store::{TreeEntry, TreeStore};
+use self::{
+    ignore::Ignore,
+    store::{TreeEntry, TreeStore},
+};
 use crate::{
     fs::{File, FileType},
     graph::Graph,
@@ -12,6 +15,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+mod ignore;
 mod store;
 
 /// How one node in the tree is connected to another node in the tree.
@@ -29,6 +33,7 @@ pub struct Tree {
     root_entry: usize,
     storage: TreeStore,
     structure: Graph<Connection>,
+    ignores: Ignore,
 }
 
 impl Tree {
@@ -43,6 +48,7 @@ impl Tree {
             root_entry: usize::max_value(),
             storage: TreeStore::new(),
             structure: Graph::new(),
+            ignores: Ignore::new(),
         };
 
         let (file_type, root_entry) = {
@@ -143,6 +149,15 @@ impl Tree {
     ) -> Result<()> {
         let parent_fd = self.storage.key_to_entry(parent_key).unwrap().fd();
         let (file_type, inode) = parent_fd.stat_at(&path)?;
+
+        if !self.ignores.should_open(
+            parent_key,
+            OsStr::from_bytes(path.as_bytes()),
+            file_type == FileType::Directory,
+        ) {
+            return Ok(());
+        }
+
         let real_name = if file_type == FileType::Link {
             Some(parent_fd.get_link_name(&path)?)
         } else {
@@ -152,10 +167,16 @@ impl Tree {
         let child_key = if let Some(key) = self.storage.inode_to_key(inode) {
             key
         } else {
-            let entry = TreeEntry::new(File::open_at(parent_fd, &path)?, inode);
+            let mut fd = File::open_at(parent_fd, &path)?;
+            if (path.as_bytes() == b".gitignore" && file_type == FileType::Regular) {
+                self.ignores.parse_gitignore(&mut fd, parent_key)?;
+            }
+            let entry = TreeEntry::new(fd, inode);
             self.add_file(entry, file_type, unresolved_files)?
         };
 
+        self.ignores
+            .open_at(parent_key, OsStr::from_bytes(path.as_bytes()), child_key);
         self.structure
             .add_edge(parent_key, child_key, Connection::Child(path));
 
@@ -177,12 +198,14 @@ impl Tree {
         file_type: FileType,
         unresolved_files: &mut Vec<UnresolvedFile>,
     ) -> Result<usize> {
-        let children = if file_type == FileType::Directory {
+        let mut children = if file_type == FileType::Directory {
             entry.fd().scan()?
         } else {
             Vec::new()
         };
         let key = self.storage.insert(entry);
+
+        children.sort_by_key(|name| name.as_bytes() == b".gitignore");
 
         for child_path in children {
             unresolved_files.push(UnresolvedFile {
