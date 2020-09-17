@@ -1,4 +1,4 @@
-use crate::fs::FileType;
+use crate::{fs::FileType, glob::TokenSet};
 use std::ptr::NonNull;
 
 use errno::Errno;
@@ -12,6 +12,10 @@ pub enum Error {
     InvalidFileType(u8),
     #[error("Unsupported file type {0:?}")]
     UnsupportedFileType(FileType),
+    #[error("Failed to parse glob ({0:?}) at index {2} - expected {1:?}")]
+    InvalidGlobParse(String, TokenSet, usize),
+    #[error("Failed to parse glob ({0:?}) - {1}")]
+    InvalidGlobCompile(String, &'static str),
 }
 
 impl Error {

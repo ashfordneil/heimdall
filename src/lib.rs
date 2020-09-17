@@ -5,5 +5,6 @@ pub use self::{
 
 mod error;
 mod fs;
+mod glob;
 mod graph;
 mod tree;

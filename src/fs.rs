@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use std::{
     convert::TryFrom,
     ffi::{CStr, CString},
-    io::{ErrorKind, Read},
+    io::Read,
     mem::MaybeUninit,
     os::{
         raw::{c_char, c_int, c_void},

@@ -1,19 +1,17 @@
 use self::store::{TreeEntry, TreeStore};
 use crate::{
-    fs::{self, File, FileType},
-    graph::{Edge, Graph},
-    Error, Result,
+    fs::{File, FileType},
+    graph::Graph,
+    Result,
 };
-use either::Either;
+use std::collections::HashMap;
 use std::{
     ffi::{CString, OsStr},
     fmt::{Debug, Formatter},
-    iter,
     os::unix::ffi::OsStrExt,
     path::{Component, Path, PathBuf},
 };
 
-mod filter;
 mod store;
 
 /// How one node in the tree is connected to another node in the tree.
@@ -70,7 +68,7 @@ impl Tree {
             )?;
         }
 
-        for UnresolvedSymlink { mut key, path } in unresolved_symlinks {
+        for UnresolvedSymlink { key, path } in unresolved_symlinks {
             let parent_key = if let Some(edge) = output
                 .structure
                 .incoming(key)
